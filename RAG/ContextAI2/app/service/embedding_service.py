@@ -1,8 +1,10 @@
 from sentence_transformers import SentenceTransformer
+import numpy as np
 
 
 # Load model once
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
 def get_embedding(text: str):
-    return model.encode(text)
+    embedding = model.encode(text)
+    return embedding / np.linalg.norm(embedding)

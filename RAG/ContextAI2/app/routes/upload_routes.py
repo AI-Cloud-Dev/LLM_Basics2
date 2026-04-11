@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi import APIRouter, UploadFile, File, HTTPException, Query
 # from app.service.pdf_service import extract_text_from_pdf, extract_text_from_doc, extract_text_from_excel
 from app.service.pdf_service import get_extractor
 from io import BytesIO
@@ -16,7 +16,7 @@ MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
 
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(file: UploadFile = File(...), session_id: str =  Query(...)):
     filename = file.filename
     
     # 1. Validate extension
@@ -47,7 +47,7 @@ async def upload_file(file: UploadFile = File(...)):
         embeddings = [get_embedding(chunk) for chunk in chunks]
         
         # 7. Store in Vector DB
-        add_embeddings(embeddings, chunks)
+        add_embeddings(session_id, embeddings, chunks)
         
         return {
             "filename": filename,

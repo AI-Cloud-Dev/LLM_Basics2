@@ -6,63 +6,69 @@ from app.service.service import get_llm_response
 from app.memory.memory_store import memory_store
 
 
-SYSTEM_PROMPT = "You are a helpful AI assistant. Use the provided context to answer accurately. If the answer is not in the context, say you don't know."
+SYSTEM_PROMPT = """
+You are a helpful AI assistant.
+
+Rules:
+1. Use ONLY the provided context.
+2. If answer is not in context, say "I don't know".
+3. Be concise and accurate.
+"""
 
 
 def get_rag_response(session_id: str, question: str, k: int = 3) -> str:
-    
-    # 1. Get memory
-    messages: List[ChatMessage] = memory_store.get(session_id, [])
 
-    # 2. Convert question → embedding
+    # 1. Initialize memory
+    if session_id not in memory_store:
+        memory_store[session_id] = [
+            ChatMessage(role="system", content="You are a helpful assistant.")
+        ]
+
+    messages: List[ChatMessage] = memory_store[session_id]
+
+    # 2. Get embedding
     query_embedding = get_embedding(question)
 
-    # 3. Search vector DB
-    retrieved_chunks = search(query_embedding, k=k)
+    # 3. Retrieve chunks
+    retrieved_chunks = search(session_id, query_embedding, k=k)
 
-    # 4. Handle NO CONTEXT (your Q8 answer implementation)
+    # 4. If no context → fallback
     if not retrieved_chunks:
-        # fallback to normal LLM
         messages.append(ChatMessage(role="user", content=question))
         response = get_llm_response(messages)
         messages.append(ChatMessage(role="assistant", content=response))
-        memory_store[session_id] = messages
         return response
 
-    # 5. Build context string
-    context = "\n\n".join(retrieved_chunks)
+    # 5. Limit context size
+    MAX_CONTEXT_CHARS = 2000
+    context = ""
 
-    # 6. Build final messages for LLM
-    rag_messages = []
+    for chunk in retrieved_chunks:
+        if len(context) + len(chunk) > MAX_CONTEXT_CHARS:
+            break
+        context += chunk + "\n\n"
 
-    # System instruction
-    rag_messages.append(ChatMessage(
-        role="system",
-        content=SYSTEM_PROMPT
-    ))
+    # 6. Build RAG messages
+    rag_messages = [
+        ChatMessage(role="system", content=SYSTEM_PROMPT),
+        ChatMessage(role="system", content=f"Context:\n{context}")
+    ]
 
-    # Context injected as system (important trick)
-    rag_messages.append(ChatMessage(
-        role="system",
-        content=f"Context:\n{context}"
-    ))
-
-    # Add limited memory (last few messages only)
-    rag_messages.extend(messages[-5:])  # limit memory
+    # Add last few messages only (avoid overflow)
+    rag_messages.extend(messages[-5:])
 
     # Add current question
-    rag_messages.append(ChatMessage(
-        role="user",
-        content=question
-    ))
+    rag_messages.append(ChatMessage(role="user", content=question))
 
     # 7. Call LLM
     response = get_llm_response(rag_messages)
 
     # 8. Store in memory
+    MAX_MESSAGES = 10
     messages.append(ChatMessage(role="user", content=question))
     messages.append(ChatMessage(role="assistant", content=response))
-
-    memory_store[session_id] = messages
+    
+    if len(messages) > MAX_MESSAGES:
+        memory_store[session_id] = messages[-MAX_MESSAGES:]
 
     return response
