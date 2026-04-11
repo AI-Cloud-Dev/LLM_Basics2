@@ -6,21 +6,21 @@ CONS: Only user conversation no function to upload the pdf or to inject the data
 
 BUT in RAG the system flow is :
 
-User uploads PDF
+User uploads PDF ->
        |
-Extract Text
+Extract Text ->
        |
-Chunk Text
+Chunk Text ->
        |
-Convert to Embeddings
+Convert to Embeddings ->
        |
-Store in vector DB
+Store in vector DB ->
        |
-User asks question
+User asks question ->
        |
-Search relevant chunks
+Search relevant chunks ->
        |
-Send chunks + question to LLM
+Send chunks + question to LLM ->
        |
 LLM generates grounded answer
 
